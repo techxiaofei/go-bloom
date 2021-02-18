@@ -7,8 +7,7 @@ import (
 	"github.com/go-redis/redis"
 )
 
-//const redisMaxLength int64 = 8 * 512 * 1024 * 1024  //512M
-const redisMaxLength int64 = 8 * 512 * 1024 //512K
+const redisMaxLength int64 = 8 * 512 * 1024 * 1024  //512M
 
 type RedisBitSet struct {
 	keyPrefix string
