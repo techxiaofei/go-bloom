@@ -2,6 +2,7 @@ package go_bloom
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -19,6 +20,8 @@ func NewRedisBitSet(keyPrefix string, m int64, client *redis.Client) *RedisBitSe
 	return &RedisBitSet{keyPrefix, m, client}
 }
 
+/*
+//sync set
 func (r *RedisBitSet) Set(offsets []int64) error {
 	for _, offset := range offsets {
 		key, thisOffset := r.getKeyOffset(offset)
@@ -29,6 +32,38 @@ func (r *RedisBitSet) Set(offsets []int64) error {
 	}
 
 	return nil
+}
+ */
+
+//async set
+func (r *RedisBitSet) Set(offsets []int64) error {
+	var wg sync.WaitGroup
+	doneChan := make(chan struct{}, 1)
+	errChan := make(chan error, 1)
+	for _, off := range offsets {
+		wg.Add(1)
+		go func(offset int64) {
+			defer wg.Done()
+			key, thisOffset := r.getKeyOffset(offset)
+			_, err := r.client.SetBit(key, thisOffset, 1).Result()
+			if err != nil {
+				errChan <- err
+				return
+			}
+		}(off)
+	}
+
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case <-doneChan:
+		return nil
+	case err := <-errChan:
+		return err
+	}
 }
 
 func (r *RedisBitSet) Test(offsets []int64) (bool, error) {
